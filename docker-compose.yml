@@ -1,0 +1,169 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: carrentals
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d carrentals"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+
+  nats:
+    image: nats:2.10-alpine
+    ports: ["4222:4222", "8222:8222"]
+    command: ["-m", "8222"]
+
+  user-service:
+    build:
+      context: .
+      args: { SERVICE: user-service }
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/carrentals?sslmode=disable
+      JWT_SECRET: change-me
+    depends_on: { postgres: { condition: service_healthy } }
+
+  car-service:
+    build:
+      context: .
+      args: { SERVICE: car-service }
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/carrentals?sslmode=disable
+      REDIS_ADDR: redis:6379
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  rental-service:
+    build:
+      context: .
+      args: { SERVICE: rental-service }
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/carrentals?sslmode=disable
+      CAR_SERVICE_ADDR: car-service:50052
+      NATS_URL: nats://nats:4222
+    depends_on:
+      postgres: { condition: service_healthy }
+      car-service: { condition: service_started }
+      nats: { condition: service_started }
+
+  payment-service:
+    build:
+      context: .
+      args: { SERVICE: payment-service }
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/carrentals?sslmode=disable
+      NATS_URL: nats://nats:4222
+    depends_on:
+      postgres: { condition: service_healthy }
+      nats: { condition: service_started }
+
+  notification-service:
+    build:
+      context: .
+      args: { SERVICE: notification-service }
+    environment:
+      NATS_URL: nats://nats:4222
+      DEFAULT_EMAIL_TO: customer@example.com
+      SMTP_HOST: smtp.gmail.com
+      SMTP_PORT: "587"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_FROM: ""
+    depends_on:
+      nats: { condition: service_started }
+
+  api-gateway:
+    build:
+      context: .
+      args: { SERVICE: api-gateway }
+    environment:
+      USER_SERVICE_ADDR: user-service:50051
+      CAR_SERVICE_ADDR: car-service:50052
+      RENTAL_SERVICE_ADDR: rental-service:50053
+      PAYMENT_SERVICE_ADDR: payment-service:50054
+      NOTIFICATION_SERVICE_ADDR: notification-service:50055
+    ports: ["8080:8080"]
+    depends_on:
+      user-service: { condition: service_started }
+      car-service: { condition: service_started }
+      rental-service: { condition: service_started }
+      payment-service: { condition: service_started }
+      notification-service: { condition: service_started }
+
+  frontend:
+    build: ./frontend
+    environment:
+      VITE_API_URL: http://localhost:8080/api
+    ports: ["3000:80"]
+    depends_on:
+      api-gateway: { condition: service_started }
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports: ["9090:9090"]
+    depends_on:
+      api-gateway: { condition: service_started }
+
+  loki:
+    image: grafana/loki:3.3.2
+    command: ["-config.file=/etc/loki/loki.yml"]
+    volumes:
+      - ./observability/loki/loki.yml:/etc/loki/loki.yml:ro
+      - lokidata:/loki
+    ports: ["3100:3100"]
+
+  promtail:
+    image: grafana/promtail:3.3.2
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes:
+      - ./observability/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      loki: { condition: service_started }
+
+  tempo:
+    image: grafana/tempo:2.7.0
+    user: "0:0"
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    volumes:
+      - ./observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempodata:/tmp/tempo
+    ports:
+      - "3200:3200"
+      - "4317:4317"
+      - "4318:4318"
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./observability/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./observability/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3001:3000"]
+    depends_on:
+      prometheus: { condition: service_started }
+      loki: { condition: service_started }
+      tempo: { condition: service_started }
+
+volumes:
+  pgdata:
+  grafanadata:
+  lokidata:
+  tempodata:

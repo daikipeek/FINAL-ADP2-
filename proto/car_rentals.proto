@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package carrentals;
+
+option go_package = "car-rentals/internal/pb";
+
+service UserService {
+  rpc RegisterUser(RegisterUserRequest) returns (UserResponse);
+  rpc LoginUser(LoginUserRequest) returns (LoginResponse);
+  rpc GetUserProfile(GetByIdRequest) returns (UserResponse);
+  rpc UpdateUserProfile(UpdateUserProfileRequest) returns (UserResponse);
+}
+
+service CarService {
+  rpc CreateCar(Car) returns (Car);
+  rpc GetCarById(GetByIdRequest) returns (Car);
+  rpc ListCars(Empty) returns (CarList);
+  rpc ListAvailableCars(Empty) returns (CarList);
+  rpc UpdateCarStatus(UpdateCarStatusRequest) returns (Car);
+  rpc SearchCars(SearchCarsRequest) returns (CarList);
+  rpc AddFavorite(FavoriteRequest) returns (Empty);
+  rpc ListFavorites(GetByIdRequest) returns (CarList);
+  rpc AddReview(Review) returns (Review);
+}
+
+service RentalService {
+  rpc CreateRental(CreateRentalRequest) returns (Rental);
+  rpc GetRentalById(GetByIdRequest) returns (Rental);
+  rpc ListUserRentals(GetByIdRequest) returns (RentalList);
+  rpc CancelRental(GetByIdRequest) returns (Rental);
+  rpc CompleteRental(CompleteRentalRequest) returns (Rental);
+  rpc CalculateRentalPrice(PriceRequest) returns (PriceResponse);
+}
+
+service PaymentService {
+  rpc ProcessPayment(ProcessPaymentRequest) returns (Payment);
+  rpc GetPaymentStatus(GetByIdRequest) returns (Payment);
+  rpc RefundPayment(GetByIdRequest) returns (Payment);
+}
+
+service NotificationService {
+  rpc SendNotificationEmail(NotificationRequest) returns (Empty);
+}
+
+message Empty {}
+message GetByIdRequest { string id = 1; }
+message RegisterUserRequest { string name = 1; string email = 2; string password = 3; string role = 4; }
+message LoginUserRequest { string email = 1; string password = 2; }
+message UpdateUserProfileRequest { string id = 1; string name = 2; string email = 3; }
+message UserResponse { string id = 1; string name = 2; string email = 3; string role = 4; }
+message LoginResponse { string token = 1; UserResponse user = 2; }
+
+message Car {
+  string id = 1; string brand = 2; string model = 3; string type = 4; string location = 5;
+  string status = 6; double daily_rate = 7; string image_url = 8; double rating = 9;
+}
+message CarList { repeated Car cars = 1; }
+message UpdateCarStatusRequest { string id = 1; string status = 2; }
+message SearchCarsRequest { string brand = 1; string model = 2; string type = 3; string location = 4; string availability = 5; }
+message FavoriteRequest { string user_id = 1; string car_id = 2; }
+message Review { string id = 1; string user_id = 2; string car_id = 3; int32 rating = 4; string comment = 5; }
+
+message CreateRentalRequest { string user_id = 1; string car_id = 2; string start_date = 3; string end_date = 4; bool insurance = 5; }
+message Rental {
+  string id = 1; string user_id = 2; string car_id = 3; string start_date = 4; string end_date = 5;
+  bool insurance = 6; double total_price = 7; string status = 8; double late_fee = 9;
+}
+message RentalList { repeated Rental rentals = 1; }
+message CompleteRentalRequest { string id = 1; string return_date = 2; }
+message PriceRequest { string car_id = 1; string start_date = 2; string end_date = 3; bool insurance = 4; string return_date = 5; }
+message PriceResponse { double total = 1; double late_fee = 2; int32 days = 3; }
+
+message ProcessPaymentRequest { string rental_id = 1; string user_id = 2; double amount = 3; string method = 4; }
+message Payment { string id = 1; string rental_id = 2; string user_id = 3; double amount = 4; string status = 5; string method = 6; }
+message NotificationRequest { string to = 1; string subject = 2; string body = 3; }

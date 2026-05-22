@@ -1,0 +1,25 @@
+{
+  "uid": "car-rentals-overview",
+  "title": "Car Rentals Overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Gateway HTTP Requests",
+      "gridPos": { "x": 0, "y": 0, "w": 8, "h": 5 },
+      "targets": [
+        { "expr": "car_rentals_http_requests_total", "refId": "A" }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "Container Logs",
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 10 },
+      "targets": [
+        { "expr": "{job=\"containerlogs\"}", "refId": "A" }
+      ]
+    }
+  ]
+}
