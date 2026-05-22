@@ -93,10 +93,16 @@ function App() {
   }, [activeView, cars, favorites]);
 
   const saveSession = (data) => {
-    setUser(data.User);
-    localStorage.setItem("user", JSON.stringify(data.User));
-    localStorage.setItem("token", data.Token || "");
-    showNotice(setNotice, `Welcome, ${data.User?.Name || "driver"}.`, "success");
+    const sessionUser = data.User || data.user;
+    const sessionToken = data.Token || data.token || "";
+    if (!sessionUser) {
+      showNotice(setNotice, "Login succeeded, but profile data was not returned.", "error");
+      return;
+    }
+    setUser(sessionUser);
+    localStorage.setItem("user", JSON.stringify(sessionUser));
+    localStorage.setItem("token", sessionToken);
+    showNotice(setNotice, `Welcome, ${sessionUser.Name || "driver"}.`, "success");
   };
 
   const signOut = () => {
@@ -165,6 +171,7 @@ function App() {
       </section>
 
       {!user ? <AuthCard onLogin={saveSession} setNotice={setNotice} /> : null}
+      {user ? <ProfilePanel user={user} rentals={rentals} favorites={favorites} /> : null}
 
       <section className="main-layout">
         <aside className="control-rail">
@@ -243,6 +250,26 @@ function App() {
         />
       ) : null}
     </main>
+  );
+}
+
+function ProfilePanel({ user, rentals, favorites }) {
+  return (
+    <section className="profile-panel">
+      <div className="profile-avatar">
+        <UserRound size={24} />
+      </div>
+      <div className="profile-main">
+        <span className="eyebrow"><BadgeCheck size={15} /> Active profile</span>
+        <h2>{user.Name}</h2>
+        <p>{user.Email}</p>
+      </div>
+      <div className="profile-facts">
+        <span><strong>{user.Role || "customer"}</strong><small>Role</small></span>
+        <span><strong>{rentals.length}</strong><small>Rentals</small></span>
+        <span><strong>{favorites.length}</strong><small>Favorites</small></span>
+      </div>
+    </section>
   );
 }
 
